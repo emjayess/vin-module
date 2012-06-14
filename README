@@ -27,3 +27,7 @@ The vehicle identification number is divided into four parts:
     4a. == '2' (Model Year)
     4b. == 'Z' (Assembly Plant)
     4c. == 'B78590' (Veh. Serial #)
+
+References
+* https://www.fleet.ford.com/maintenance/vin_tools/vinexample.htm
+* http://en.wikibooks.org/wiki/Vehicle_Identification_Numbers_(VIN_codes)/Ford/VIN_Codes
