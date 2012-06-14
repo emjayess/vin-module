@@ -1,0 +1,29 @@
+the VIN module (is a drupal module that) decodes [V]ehicle [I]dentification [N]umbers
+
+When decoded, the VIN tells the country and year of manufacture; make, model and serial number; 
+assembly plant; and in some cases it even identifies equipment specifications.
+
+The vehicle identification number is divided into four parts:
+
+ 1. World Manufacturer's Identification (WMI - three characters)
+ 2. Vehicle Description Section (VDS - five characters)
+ 3. The VIN Accuracy Check Digit
+ 4. Vehicle Identification Section (VIS - eight characters)
+
+2FMZU62E02ZB78590 breaks down to: [ 2FM | ZU62E | 0 | 2ZB78590 ]
+
+ 1. WMI(3) == '2FM'
+    1a. == '2' (Canada) 
+    1b. == 'F' (Mfg.?)
+    1c. == 'M' (Make or Division?)
+
+ 2. VDS(5) == 'ZU62E'
+    2a. == 'ZU' (?)
+    2b. == '62E' (vehicle line)
+
+ 3. CHK(?) == '0'
+
+ 4. VIS(8) == '2ZB78590'
+    4a. == '2' (Model Year)
+    4b. == 'Z' (Assembly Plant)
+    4c. == 'B78590' (Veh. Serial #)

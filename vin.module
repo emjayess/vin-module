@@ -1,0 +1,277 @@
+<?php
+// $Id: vin.module
+
+/*
+ * @file
+ *  the VIN module decodes [V]ehicle [I]dentification [N]umbers
+ *
+ * When decoded, the VIN tells the country and year of manufacture; make, model and serial number; 
+ * assembly plant; and in some cases it even identifies equipment specifications.
+ *
+ * The vehicle identification number is divided into four parts:
+ *   1. World Manufacturer's Identification (WMI - three characters)
+ *   2. Vehicle Description Section (VDS - five characters)
+ *   3. The VIN Accuracy Check Digit
+ *   4. Vehicle Identification Section (VIS - eight characters)
+ *
+ * 2FMZU62E02ZB78590 breaks down to: [ 2FM | ZU62E | 0 | 2ZB78590 ]
+ *   1. WMI(3) == '2FM'
+ *          1a. == '2' (Canada) 
+ *          1b. == 'F' (Mfg.?)
+ *          1c. == 'M' (Make or Division?)
+ *
+ *   2. VDS(5) == 'ZU62E'
+ *          2a. == 'ZU' (?)
+ *          2b. == '62E' (vehicle line)
+ *   3. CHK(?) == '0'
+ *   4. VIS(8) == '2ZB78590'
+ *          4a. == '2' (Model Year)
+ *          4b. == 'Z' (Assembly Plant)
+ *          4c. == 'B78590' (Veh. Serial #)
+ */
+
+function vin_help($section) {
+	switch ($section) {
+		case 'admin/help#vin':
+			return t('<p>VIN Tools...</p>');
+			break;
+		case 'admin/modules#description':
+			return t('VIN Tools...');
+			break;
+	}
+}
+
+function vin_access() {
+	return TRUE;
+}
+
+function vin_menu($may_cache) {
+	$items = array();
+	if ($may_cache) {
+		$items[] = array( 
+			'path'     => 'vin/decode',
+			'type'     => MENU_CALLBACK,
+			'access'   => TRUE,
+			'callback' => 'vin_decode',
+		);
+	}
+	return $items;
+}
+
+function vin_decode($vin, $format=NULL) {
+  $vin_out = array();
+  $vin_data = array();
+  
+  $vin_out['wmi'] = $vin_wmi = substr($vin, 0, 3);
+  $vin_out['vds'] = $vin_vds = substr($vin, 2, 5);
+  $vin_out['chk'] = $vin_chk = substr($vin, 8, 1);
+  $vin_out['vis'] = $vin_vis = substr($vin, 9, 8);
+  
+  $wmi = vin_wmi_decode($vin_wmi);
+  $vds = vin_vds_decode($vin_vds);
+  $vis = vin_vis_decode($vin_vis);
+  
+  $vin_data[$vin] = array(
+    'year'  => $vis['year'],
+    'make'  => $wmi['make'],
+    'line'  => $vds['line'],
+    'style' => $wmi['style']
+  );
+  
+  //=== response formatting ===//
+  //print 'VIN:'.$vin.' = '.drupal_to_js($vin_out);
+  $response = $vin . ': (' 
+            . $wmi['cc'] . ') ' 
+            . $vis['year'] . ' ' 
+            . $wmi['make'] . ' ' 
+            . $vds['line'] . ' ' 
+            . $wmi['style'];
+  
+  switch (strtolower($format)) {
+    case 'json':
+      header('Content-type: text/javascript');
+      print drupal_to_js($vin_data);
+      break;
+    
+    case 'text':
+      header('Content-type: text/plain');
+      print $response;
+      break;
+      
+    case 'xml' :
+      header('Content-type: text/xml');
+      print vin_to_xml($vin,$vin_data);
+      break;
+    
+    case 'csv' :
+      header('Content-type: text/plain');
+      print vin_to_csv($vin,$vin_data);
+      break;
+      
+    case 'tab' :
+      header('Content-type: text/plain');
+      print vin_to_tab($vin,$vin_data);
+      break;
+          
+    default :
+      return $response;
+      break;
+  }
+}
+
+
+/*
+ * vin_wmi_decode
+ * [W]orld [M]fg [I]d
+ */
+function vin_wmi_decode($vin_wmi) {
+  $wmi = array();
+  
+  // 1a.
+  $assembly_country_code = substr($vin_wmi,0,1);
+  switch ($assembly_country_code) {
+    case '1':
+    case '4': $wmi['cc'] = 'United States'; break;   
+  }
+  
+  // 1b.
+  $mfg_make_code = substr($vin_wmi,1,1);
+  switch ($mfg_make_code) {
+    case 'F': $wmi['make']='Ford'; break;
+    case 'C': $wmi['make']='Chevrolet'; break;
+  }
+  
+  // 1c.
+  $mfg_body_style = substr($vin_wmi,2,1);
+  switch ($mfg_body_style) {
+    case 'T': $wmi['style'] = 'Pickup'; break;
+  }
+  return $wmi;
+}
+
+/*
+ * vin_vds_decode
+ * [V]ehicle [D]esc [S]ection
+ */
+function vin_vds_decode($vin_vds) {
+  $vds = array();
+  
+  $veh_line_code = substr($vin_vds,2,1);
+  switch ($veh_line_code) {
+    case 'W': $vds['line'] = 'F-150'; break;
+  }
+  return $vds;
+}
+
+/*
+ * vin_vis_decode
+ * [V]ehicle [I]d [S]ection
+ */
+function vin_vis_decode($vin_vis) {
+  $vis = array();
+  
+  $model_year_code = substr($vin_vis,0,1);
+  switch ($model_year_code) {
+    case 'A': $vis['year']='1980';break;
+    case 'B': $vis['year']='1981';break;
+    case 'C': $vis['year']='1982';break;
+    case 'D': $vis['year']='1983';break;
+    case 'E': $vis['year']='1984';break;
+    case 'F': $vis['year']='1985';break;
+    case 'G': $vis['year']='1986';break;
+    case 'H': $vis['year']='1987';break;
+    case 'J': $vis['year']='1988';break;
+    case 'K': $vis['year']='1989';break;
+    
+    case 'L': $vis['year']='1990';break;
+    case 'M': $vis['year']='1991';break;
+    case 'N': $vis['year']='1992';break;
+    case 'P': $vis['year']='1993';break;
+    case 'R': $vis['year']='1994';break;
+    case 'S': $vis['year']='1995';break;
+    case 'T': $vis['year']='1996';break;
+    case 'V': $vis['year']='1997';break;
+    case 'W': $vis['year']='1998';break;
+    case 'X': $vis['year']='1999';break;
+    
+    case 'Y': $vis['year']='2000';break;
+    case '1': $vis['year']='2001';break;
+    case '2': $vis['year']='2002';break;
+    case '3': $vis['year']='2003';break;
+    case '4': $vis['year']='2004';break;
+    case '5': $vis['year']='2005';break;
+    case '6': $vis['year']='2006';break;
+    case '7': $vis['year']='2007';break;
+    case '8': $vis['year']='2008';break;
+    case '9': $vis['year']='2009';break;
+    
+    /* TODO: distinguish between eighties vehicles and new vehicles...
+    //  (or disable eighties vehicles in mid-2009)
+    case 'A': $vis['year']='2010';break;
+    case 'B': $vis['year']='2011';break;
+    case 'C': $vis['year']='2012';break;
+    case 'D': $vis['year']='2013';break;
+    case 'E': $vis['year']='2014';break;
+    case 'F': $vis['year']='2015';break;
+    case 'G': $vis['year']='2016';break;
+    case 'H': $vis['year']='2017';break;
+    case 'J': $vis['year']='2018';break;
+    case 'K': $vis['year']='2019';break;
+    */
+  }
+  return $vis;
+}
+
+/**
+ * vin_to_xml
+ * xml-formatted output
+ */
+function vin_to_xml($vin,$vin_data) {
+  $xml = '<xml namespace="module.vin">';
+  $xml.= ' <vehicle id="'.$vin.'">';
+  $xml.= '   <vin>'.$vin.'</vin>';
+  $xml.= '   <year>'.$vin_data[$vin]['year'].'</year>';
+  $xml.= '   <make>'.$vin_data[$vin]['make'].'</make>';
+  $xml.= '   <line>'.$vin_data[$vin]['line'].'</line>';
+  $xml.= '   <style>'.$vin_data[$vin]['style'].'</style>';
+  $xml.= ' </vehicle>';
+  $xml.= '</xml>';
+  return $xml;
+}
+
+/**
+ * vin_to_csv
+ * comma-separated output
+ */
+function vin_to_csv($vin, $vin_data) {
+  $headers = array();
+  $values = array();
+  foreach ($vin_data[$vin] as $key=>$value) {
+    $headers[] = $key;
+    $values[] = $value;
+  }
+  $csv = implode(',', $headers).chr(10);
+  $csv.= implode(',', $values);
+  return $csv;
+}
+
+/**
+ * vin_to_tab
+ * tab-delimited output
+ */
+function vin_to_tab($vin, $vin_data) {
+  $headers = array();
+  $values = array();
+  foreach ($vin_data[$vin] as $key=>$value) {
+    $headers[] = $key;
+    $values[] = $value;
+  }
+  $tab = implode(chr(9), $headers).chr(10);
+  $tab.= implode(chr(9), $values);
+  return $tab;
+  
+}
+
+function vin_stock_images($vin) {
+  //TODO?
+}
